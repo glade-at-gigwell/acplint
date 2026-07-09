@@ -335,7 +335,7 @@ class PromptCapabilities(BaseModel):
 class PromptRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     session_id: str = Field(alias="sessionId")
-    content: list[dict[str, Any]] = Field(default_factory=list)
+    prompt: list[dict[str, Any]] = Field(default_factory=list)
     prompt_capabilities: PromptCapabilities | None = Field(None, alias="promptCapabilities")
     meta: dict[str, Any] | None = Field(None, alias="_meta")
 
