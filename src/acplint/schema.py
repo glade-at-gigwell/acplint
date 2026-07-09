@@ -54,8 +54,8 @@ class JsonRpcNotification(BaseModel):
 # Protocol version
 # ---------------------------------------------------------------------------
 
-class ProtocolVersion(str, Enum):
-    V1 = "1"
+class ProtocolVersion(int, Enum):
+    V1 = 1
 
 
 # ---------------------------------------------------------------------------

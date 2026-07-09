@@ -206,7 +206,7 @@ class ConformanceRunner:
             response = await self._transport.send_request(
                 METHOD_INITIALIZE,
                 {
-                    "protocolVersion": "1",
+                    "protocolVersion": 1,
                     "clientCapabilities": {},
                     "clientInfo": {"name": "acp-conformance", "version": "0.1.0"},
                 },
@@ -244,13 +244,13 @@ class ConformanceRunner:
             # Test: protocol version must be "1"
             protocol_version = result.get("protocolVersion")
             if testing:
-                if protocol_version == "1":
+                if protocol_version == 1:
                     self._record("protocol_version_returned", "initialization", TestStatus.PASS)
                 else:
                     self._record(
                         "protocol_version_returned", "initialization", TestStatus.FAIL,
-                        f"Expected protocolVersion='1', got '{protocol_version}'",
-                        details={"expected": "1", "actual": protocol_version},
+                        f"Expected protocolVersion=1, got {protocol_version!r}",
+                        details={"expected": 1, "actual": protocol_version},
                     )
 
             # Test: agentCapabilities must be present
@@ -301,7 +301,7 @@ class ConformanceRunner:
         response = await self._transport.send_request(
             METHOD_INITIALIZE,
             {
-                "protocolVersion": "1",
+                "protocolVersion": 1,
                 "clientCapabilities": {},
                 "clientInfo": {"name": "acp-conformance", "version": "0.1.0"},
             },
@@ -1664,7 +1664,7 @@ class ConformanceRunner:
         await self._ensure_session()
 
         methods_to_validate = [
-            (METHOD_INITIALIZE, {"protocolVersion": "1", "clientCapabilities": {}, "clientInfo": {"name": "acp-conformance", "version": "0.1.0"}}),
+            (METHOD_INITIALIZE, {"protocolVersion": 1, "clientCapabilities": {}, "clientInfo": {"name": "acp-conformance", "version": "0.1.0"}}),
             (METHOD_NEW_SESSION, {"cwd": self._cwd or "/tmp", "mcpServers": []}),
             (METHOD_LIST_SESSIONS, {"cwd": self._cwd or "/tmp"}),
         ]
