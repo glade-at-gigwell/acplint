@@ -42,6 +42,7 @@ from acplint.schema import (
     ToolCall,
     ToolCallUpdate,
     UsageUpdate,
+    select_allow_option,
 )
 from acplint.transport import AcpTransport
 
@@ -1136,7 +1137,7 @@ class ConformanceRunner:
                     validated = RequestPermissionRequest.model_validate(params)
                     self._record("permission_request_schema_valid", "permissions", TestStatus.PASS,
                                  details={"session_id": validated.session_id,
-                                          "description": validated.description,
+                                          "tool_call_id": validated.tool_call.tool_call_id,
                                           "option_count": len(validated.options)})
                 except pydantic.ValidationError as e:
                     error_detail = self._format_validation_error(e)
@@ -1751,16 +1752,12 @@ class ConformanceRunner:
     # -----------------------------------------------------------------------
 
     def _default_permission_handler(self, params: dict[str, Any]) -> dict[str, Any]:
-        options = params.get("options", [])
-        if options:
-            first_option = options[0]
-            return {
-                "outcome": {
-                    "optionId": first_option.get("id", "allow"),
-                    "optionKind": "allow",
-                }
-            }
-        return {"outcome": {"optionId": "allow", "optionKind": "allow"}}
+        chosen = select_allow_option(params.get("options", []))
+        if chosen:
+            # ACP v1 SelectedPermissionOutcome = {outcome:"selected", optionId}.
+            return {"outcome": {"outcome": "selected", "optionId": chosen}}
+        # No options to select → cancelled (ACP v1 CancelledPermissionOutcome).
+        return {"outcome": {"outcome": "cancelled"}}
 
     def _record(
         self,
