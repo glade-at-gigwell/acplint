@@ -4,4 +4,4 @@ from acplint.runner import ConformanceRunner
 from acplint.report import ConformanceReport
 
 __all__ = ["ConformanceRunner", "ConformanceReport"]
-__version__ = "0.1.0"
+__version__ = "0.2.0"
