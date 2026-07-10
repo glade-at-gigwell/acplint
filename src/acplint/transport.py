@@ -16,6 +16,7 @@ from acplint.schema import (
     METHOD_TERMINAL_OUTPUT,
     METHOD_WAIT_FOR_TERMINAL_EXIT,
     METHOD_WRITE_TEXT_FILE,
+    select_allow_option,
 )
 
 logger = logging.getLogger(__name__)
@@ -346,14 +347,21 @@ class AcpTransport:
                 result = self._permission_handler(params)
                 await self.send_response(request_id, result)
             else:
-                # Default: allow the first option
-                options = params.get("options", [])
-                if options:
+                # Default: allow the first allow-kind option (ACP v1
+                # SelectedPermissionOutcome = {outcome:"selected", optionId}).
+                # No options / no allow-kind option → CancelledPermissionOutcome
+                # ({outcome:"cancelled"}); options has no minItems in v1, so an
+                # empty array is a valid request that still requires a valid
+                # RequestPermissionResponse, not a JSON-RPC error.
+                chosen = select_allow_option(params.get("options", []))
+                if chosen:
                     await self.send_response(request_id, {
-                        "outcome": {"optionId": options[0].get("id", "allow"), "optionKind": "allow"}
+                        "outcome": {"outcome": "selected", "optionId": chosen}
                     })
                 else:
-                    await self.send_error_response(request_id, -32600, "No permission options provided")
+                    await self.send_response(request_id, {
+                        "outcome": {"outcome": "cancelled"}
+                    })
         elif method == METHOD_READ_TEXT_FILE:
             if self._read_file_handler:
                 result = self._read_file_handler(params)

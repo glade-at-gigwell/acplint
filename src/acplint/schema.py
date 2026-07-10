@@ -54,8 +54,8 @@ class JsonRpcNotification(BaseModel):
 # Protocol version
 # ---------------------------------------------------------------------------
 
-class ProtocolVersion(str, Enum):
-    V1 = "1"
+class ProtocolVersion(int, Enum):
+    V1 = 1
 
 
 # ---------------------------------------------------------------------------
@@ -317,8 +317,11 @@ class DeleteSessionResponse(BaseModel):
 class StopReason(str, Enum):
     END_TURN = "end_turn"
     MAX_OUTPUT_TOKENS = "max_output_tokens"
+    MAX_TOKENS = "max_tokens"
+    MAX_TURN_REQUESTS = "max_turn_requests"
     TOOL_USE = "tool_use"
     REFUSAL = "refusal"
+    CANCELLED = "cancelled"
 
 
 class PromptCapabilities(BaseModel):
@@ -332,7 +335,7 @@ class PromptCapabilities(BaseModel):
 class PromptRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     session_id: str = Field(alias="sessionId")
-    content: list[dict[str, Any]] = Field(default_factory=list)
+    prompt: list[dict[str, Any]] = Field(default_factory=list)
     prompt_capabilities: PromptCapabilities | None = Field(None, alias="promptCapabilities")
     meta: dict[str, Any] | None = Field(None, alias="_meta")
 
@@ -632,10 +635,18 @@ class SessionNotification(BaseModel):
 # Agent -> Client requests
 # ---------------------------------------------------------------------------
 
+class PermissionOptionKind(str, Enum):
+    ALLOW_ONCE = "allow_once"
+    ALLOW_ALWAYS = "allow_always"
+    REJECT_ONCE = "reject_once"
+    REJECT_ALWAYS = "reject_always"
+
+
 class PermissionOptionChoice(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    id: str
-    label: str | None = None
+    option_id: str = Field(alias="optionId")
+    name: str
+    kind: PermissionOptionKind
     meta: dict[str, Any] | None = Field(None, alias="_meta")
 
 
@@ -648,7 +659,7 @@ class PermissionPattern(BaseModel):
 class RequestPermissionRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     session_id: str = Field(alias="sessionId")
-    description: str
+    tool_call: ToolCallUpdate = Field(alias="toolCall")
     options: list[PermissionOptionChoice]
     meta: dict[str, Any] | None = Field(None, alias="_meta")
 
@@ -657,6 +668,25 @@ class RequestPermissionResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     outcome: dict[str, Any]
     meta: dict[str, Any] | None = Field(None, alias="_meta")
+
+
+def select_allow_option(options: list[dict[str, Any]]) -> str | None:
+    """Pick the optionId of the first allow-kind permission option (ACP v1).
+
+    ACP v1 options carry an explicit ``kind`` (``allow_once``/``allow_always``
+    /``reject_once``/``reject_always``); the spec does not guarantee allow-first
+    ordering. Auto-approval that blindly selects ``options[0]`` can therefore
+    pick a reject-kind option and produce a false negative. This prefers the
+    first option whose ``kind`` is an allow variant, falls back to the first
+    option's ``optionId`` when no allow-kind option is present, and returns
+    ``None`` when there are no options.
+    """
+    for opt in options or []:
+        if opt.get("kind") in ("allow_always", "allow_once"):
+            return opt.get("optionId")
+    if options:
+        return options[0].get("optionId")
+    return None
 
 
 class ReadTextFileRequest(BaseModel):

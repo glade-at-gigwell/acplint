@@ -42,6 +42,7 @@ from acplint.schema import (
     ToolCall,
     ToolCallUpdate,
     UsageUpdate,
+    select_allow_option,
 )
 from acplint.transport import AcpTransport
 
@@ -64,28 +65,28 @@ ALL_CATEGORIES = [
 
 # All known session update types that we check for during streaming
 ALL_SESSION_UPDATE_TYPES = [
-    "agentMessageChunk",
-    "agentThoughtChunk",
-    "userMessageChunk",
-    "toolCall",
-    "toolCallUpdate",
-    "availableCommandsUpdate",
+    "agent_message_chunk",
+    "agent_thought_chunk",
+    "user_message_chunk",
+    "tool_call",
+    "tool_call_update",
+    "available_commands_update",
     "plan",
-    "currentModeUpdate",
-    "configOptionUpdate",
-    "sessionInfoUpdate",
-    "usageUpdate",
+    "current_mode_update",
+    "config_option_update",
+    "session_info_update",
+    "usage_update",
 ]
 
 # Updates that are REQUIRED for conformance — missing these is a FAIL
-REQUIRED_UPDATE_TYPES = {"agentMessageChunk"}
+REQUIRED_UPDATE_TYPES = {"agent_message_chunk"}
 
 # Updates that are recommended — missing these generates a finding but not a FAIL
 RECOMMENDED_UPDATE_TYPES = {
-    "agentThoughtChunk",
-    "availableCommandsUpdate",
-    "usageUpdate",
-    "toolCallUpdate",
+    "agent_thought_chunk",
+    "available_commands_update",
+    "usage_update",
+    "tool_call_update",
 }
 
 # Agent->client request methods we track for coverage
@@ -205,7 +206,7 @@ class ConformanceRunner:
             response = await self._transport.send_request(
                 METHOD_INITIALIZE,
                 {
-                    "protocolVersion": "1",
+                    "protocolVersion": 1,
                     "clientCapabilities": {},
                     "clientInfo": {"name": "acp-conformance", "version": "0.1.0"},
                 },
@@ -243,13 +244,13 @@ class ConformanceRunner:
             # Test: protocol version must be "1"
             protocol_version = result.get("protocolVersion")
             if testing:
-                if protocol_version == "1":
+                if protocol_version == 1:
                     self._record("protocol_version_returned", "initialization", TestStatus.PASS)
                 else:
                     self._record(
                         "protocol_version_returned", "initialization", TestStatus.FAIL,
-                        f"Expected protocolVersion='1', got '{protocol_version}'",
-                        details={"expected": "1", "actual": protocol_version},
+                        f"Expected protocolVersion=1, got {protocol_version!r}",
+                        details={"expected": 1, "actual": protocol_version},
                     )
 
             # Test: agentCapabilities must be present
@@ -300,7 +301,7 @@ class ConformanceRunner:
         response = await self._transport.send_request(
             METHOD_INITIALIZE,
             {
-                "protocolVersion": "1",
+                "protocolVersion": 1,
                 "clientCapabilities": {},
                 "clientInfo": {"name": "acp-conformance", "version": "0.1.0"},
             },
@@ -585,7 +586,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Say 'hello' and nothing else."}],
+                        "prompt": [{"type": "text", "text": "Say 'hello' and nothing else."}],
                     },
                 )
             )
@@ -597,10 +598,10 @@ class ConformanceRunner:
             )
 
             try:
-                response = await asyncio.wait_for(prompt_task, timeout=20.0)
+                response = await asyncio.wait_for(prompt_task, timeout=self._timeout)
             except asyncio.TimeoutError:
                 self._record("prompt_response_received", "streaming", TestStatus.FAIL,
-                             "Prompt response timed out after 20s")
+                             f"Prompt response timed out after {self._timeout}s")
                 return
 
             self._coverage["methods_called"].add(METHOD_PROMPT)
@@ -656,9 +657,9 @@ class ConformanceRunner:
             # ---- Check each specific update type ----
 
             # agentMessageChunk — REQUIRED
-            if update_types.get("agentMessageChunk", 0) > 0:
+            if update_types.get("agent_message_chunk", 0) > 0:
                 self._record("agent_message_chunk_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["agentMessageChunk"]})
+                             details={"count": update_types["agent_message_chunk"]})
             else:
                 self._record(
                     "agent_message_chunk_received", "streaming", TestStatus.FAIL,
@@ -667,9 +668,9 @@ class ConformanceRunner:
                 )
 
             # agentThoughtChunk — RECOMMENDED
-            if update_types.get("agentThoughtChunk", 0) > 0:
+            if update_types.get("agent_thought_chunk", 0) > 0:
                 self._record("agent_thought_chunk_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["agentThoughtChunk"]})
+                             details={"count": update_types["agent_thought_chunk"]})
             else:
                 self._record(
                     "agent_thought_chunk_received", "streaming", TestStatus.PASS,
@@ -679,9 +680,9 @@ class ConformanceRunner:
                 self._findings.append("⚠ Agent doesn't stream thinking (agentThoughtChunk) — agents should stream thoughts for transparency")
 
             # userMessageChunk
-            if update_types.get("userMessageChunk", 0) > 0:
+            if update_types.get("user_message_chunk", 0) > 0:
                 self._record("user_message_chunk_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["userMessageChunk"]})
+                             details={"count": update_types["user_message_chunk"]})
             else:
                 self._record(
                     "user_message_chunk_received", "streaming", TestStatus.PASS,
@@ -689,9 +690,9 @@ class ConformanceRunner:
                 )
 
             # toolCall notifications
-            if update_types.get("toolCall", 0) > 0:
+            if update_types.get("tool_call", 0) > 0:
                 self._record("tool_call_notifications_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["toolCall"]})
+                             details={"count": update_types["tool_call"]})
             else:
                 self._record(
                     "tool_call_notifications_received", "streaming", TestStatus.PASS,
@@ -700,26 +701,26 @@ class ConformanceRunner:
                 )
 
             # toolCallUpdate notifications
-            if update_types.get("toolCallUpdate", 0) > 0:
+            if update_types.get("tool_call_update", 0) > 0:
                 self._record("tool_call_update_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["toolCallUpdate"]})
+                             details={"count": update_types["tool_call_update"]})
             else:
                 self._record(
                     "tool_call_update_received", "streaming", TestStatus.PASS,
                     "No toolCallUpdate notifications during test prompt",
                 )
-                if update_types.get("toolCall", 0) > 0:
+                if update_types.get("tool_call", 0) > 0:
                     self._findings.append("⚠ Tool calls received but no toolCallUpdate notifications — agents should provide status updates for tool calls")
 
             # availableCommandsUpdate — RECOMMENDED (hooks/commands)
-            if update_types.get("availableCommandsUpdate", 0) > 0:
+            if update_types.get("available_commands_update", 0) > 0:
                 self._record("available_commands_update_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["availableCommandsUpdate"]})
+                             details={"count": update_types["available_commands_update"]})
                 # Validate schema of the first one
                 for notif in notifications:
                     params = notif.get("params", {})
                     update = params.get("update", {})
-                    if update.get("sessionUpdate") == "availableCommandsUpdate":
+                    if update.get("sessionUpdate") == "available_commands_update":
                         try:
                             AvailableCommandsUpdate.model_validate(update)
                             self._record("available_commands_schema_valid", "streaming", TestStatus.PASS)
@@ -748,9 +749,9 @@ class ConformanceRunner:
                 )
 
             # currentModeUpdate
-            if update_types.get("currentModeUpdate", 0) > 0:
+            if update_types.get("current_mode_update", 0) > 0:
                 self._record("current_mode_update_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["currentModeUpdate"]})
+                             details={"count": update_types["current_mode_update"]})
             else:
                 self._record(
                     "current_mode_update_received", "streaming", TestStatus.PASS,
@@ -758,9 +759,9 @@ class ConformanceRunner:
                 )
 
             # configOptionUpdate
-            if update_types.get("configOptionUpdate", 0) > 0:
+            if update_types.get("config_option_update", 0) > 0:
                 self._record("config_option_update_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["configOptionUpdate"]})
+                             details={"count": update_types["config_option_update"]})
             else:
                 self._record(
                     "config_option_update_received", "streaming", TestStatus.PASS,
@@ -768,9 +769,9 @@ class ConformanceRunner:
                 )
 
             # sessionInfoUpdate
-            if update_types.get("sessionInfoUpdate", 0) > 0:
+            if update_types.get("session_info_update", 0) > 0:
                 self._record("session_info_update_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["sessionInfoUpdate"]})
+                             details={"count": update_types["session_info_update"]})
             else:
                 self._record(
                     "session_info_update_received", "streaming", TestStatus.PASS,
@@ -778,14 +779,14 @@ class ConformanceRunner:
                 )
 
             # usageUpdate — RECOMMENDED
-            if update_types.get("usageUpdate", 0) > 0:
+            if update_types.get("usage_update", 0) > 0:
                 self._record("usage_update_received", "streaming", TestStatus.PASS,
-                             details={"count": update_types["usageUpdate"]})
+                             details={"count": update_types["usage_update"]})
                 # Validate first usage update
                 for notif in notifications:
                     params = notif.get("params", {})
                     update = params.get("update", {})
-                    if update.get("sessionUpdate") == "usageUpdate":
+                    if update.get("sessionUpdate") == "usage_update":
                         try:
                             UsageUpdate.model_validate(update)
                             self._record("usage_update_schema_valid", "streaming", TestStatus.PASS)
@@ -835,10 +836,10 @@ class ConformanceRunner:
                 params = notif.get("params", {})
                 update = params.get("update", {})
                 update_type = update.get("sessionUpdate", "")
-                if update_type == "toolCall":
-                    tool_call_data.append(update.get("toolCall", update))
-                elif update_type == "toolCallUpdate":
-                    tool_update_data.append(update.get("toolCallUpdate", update))
+                if update_type == "tool_call":
+                    tool_call_data.append(update.get("tool_call", update))
+                elif update_type == "tool_call_update":
+                    tool_update_data.append(update.get("tool_call_update", update))
 
         # Also try a tool-use prompt
         try:
@@ -847,7 +848,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Read the file /tmp/acp_test.txt and tell me its contents"}],
+                        "prompt": [{"type": "text", "text": "Read the file /tmp/acp_test.txt and tell me its contents"}],
                     },
                 )
             )
@@ -866,10 +867,10 @@ class ConformanceRunner:
                 params = notif.get("params", {})
                 update = params.get("update", {})
                 update_type = update.get("sessionUpdate", "")
-                if update_type == "toolCall":
-                    tool_call_data.append(update.get("toolCall", update))
-                elif update_type == "toolCallUpdate":
-                    tool_update_data.append(update.get("toolCallUpdate", update))
+                if update_type == "tool_call":
+                    tool_call_data.append(update.get("tool_call", update))
+                elif update_type == "tool_call_update":
+                    tool_update_data.append(update.get("tool_call_update", update))
 
         except Exception as e:
             self._record("tool_calls_prompt", "tool_calls", TestStatus.ERROR, str(e))
@@ -1112,7 +1113,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Write 'test' to /tmp/acplint_test.txt"}],
+                        "prompt": [{"type": "text", "text": "Write 'test' to /tmp/acplint_test.txt"}],
                     },
                 )
             )
@@ -1136,7 +1137,7 @@ class ConformanceRunner:
                     validated = RequestPermissionRequest.model_validate(params)
                     self._record("permission_request_schema_valid", "permissions", TestStatus.PASS,
                                  details={"session_id": validated.session_id,
-                                          "description": validated.description,
+                                          "tool_call_id": validated.tool_call.tool_call_id,
                                           "option_count": len(validated.options)})
                 except pydantic.ValidationError as e:
                     error_detail = self._format_validation_error(e)
@@ -1183,7 +1184,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Read /tmp/acplint_test.txt and tell me its contents"}],
+                        "prompt": [{"type": "text", "text": "Read /tmp/acplint_test.txt and tell me its contents"}],
                     },
                 )
             )
@@ -1232,7 +1233,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Create a file at /tmp/acplint_write_test.txt with content 'hello'"}],
+                        "prompt": [{"type": "text", "text": "Create a file at /tmp/acplint_write_test.txt with content 'hello'"}],
                     },
                 )
             )
@@ -1301,7 +1302,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Run 'echo hello' in a terminal"}],
+                        "prompt": [{"type": "text", "text": "Run 'echo hello' in a terminal"}],
                     },
                 )
             )
@@ -1379,7 +1380,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Create a simple plan: 1) read a file 2) summarize it"}],
+                        "prompt": [{"type": "text", "text": "Create a simple plan: 1) read a file 2) summarize it"}],
                     },
                 )
             )
@@ -1524,7 +1525,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Write me a very long essay about everything"}],
+                        "prompt": [{"type": "text", "text": "Write me a very long essay about everything"}],
                     },
                 )
             )
@@ -1572,7 +1573,7 @@ class ConformanceRunner:
                         METHOD_PROMPT,
                         {
                             "sessionId": self._session_id,
-                            "content": [{"type": "text", "text": f"Say 'test {i}'"}],
+                            "prompt": [{"type": "text", "text": f"Say 'test {i}'"}],
                         },
                     )
                 except TimeoutError:
@@ -1621,7 +1622,7 @@ class ConformanceRunner:
                 METHOD_PROMPT,
                 {
                     "sessionId": self._session_id,
-                    "content": [{"type": "text", "text": f"Repeat this word: {large_text[:100]}"}],
+                    "prompt": [{"type": "text", "text": f"Repeat this word: {large_text[:100]}"}],
                 },
             )
             self._record("stress_large_prompt", "stress", TestStatus.PASS)
@@ -1638,7 +1639,7 @@ class ConformanceRunner:
                     METHOD_PROMPT,
                     {
                         "sessionId": self._session_id,
-                        "content": [{"type": "text", "text": "Do something complex"}],
+                        "prompt": [{"type": "text", "text": "Do something complex"}],
                     },
                 )
             )
@@ -1663,7 +1664,7 @@ class ConformanceRunner:
         await self._ensure_session()
 
         methods_to_validate = [
-            (METHOD_INITIALIZE, {"protocolVersion": "1", "clientCapabilities": {}, "clientInfo": {"name": "acp-conformance", "version": "0.1.0"}}),
+            (METHOD_INITIALIZE, {"protocolVersion": 1, "clientCapabilities": {}, "clientInfo": {"name": "acp-conformance", "version": "0.1.0"}}),
             (METHOD_NEW_SESSION, {"cwd": self._cwd or "/tmp", "mcpServers": []}),
             (METHOD_LIST_SESSIONS, {"cwd": self._cwd or "/tmp"}),
         ]
@@ -1736,13 +1737,13 @@ class ConformanceRunner:
                 if update_type in REQUIRED_UPDATE_TYPES:
                     # Already handled as FAIL in streaming tests
                     pass
-                elif update_type == "agentThoughtChunk":
+                elif update_type == "agent_thought_chunk":
                     if "⚠ Agent doesn't stream thinking" not in " ".join(self._findings):
                         self._findings.append(f"⚠ No {update_type} notifications received at all")
-                elif update_type == "availableCommandsUpdate":
+                elif update_type == "available_commands_update":
                     if "⚠ No hooks/available commands" not in " ".join(self._findings):
                         self._findings.append(f"⚠ No {update_type} notifications received — agent doesn't advertise commands/hooks")
-                elif update_type == "usageUpdate":
+                elif update_type == "usage_update":
                     if "⚠ Agent doesn't report token usage" not in " ".join(self._findings):
                         self._findings.append(f"⚠ No {update_type} notifications received — agent doesn't report usage")
 
@@ -1751,16 +1752,12 @@ class ConformanceRunner:
     # -----------------------------------------------------------------------
 
     def _default_permission_handler(self, params: dict[str, Any]) -> dict[str, Any]:
-        options = params.get("options", [])
-        if options:
-            first_option = options[0]
-            return {
-                "outcome": {
-                    "optionId": first_option.get("id", "allow"),
-                    "optionKind": "allow",
-                }
-            }
-        return {"outcome": {"optionId": "allow", "optionKind": "allow"}}
+        chosen = select_allow_option(params.get("options", []))
+        if chosen:
+            # ACP v1 SelectedPermissionOutcome = {outcome:"selected", optionId}.
+            return {"outcome": {"outcome": "selected", "optionId": chosen}}
+        # No options to select → cancelled (ACP v1 CancelledPermissionOutcome).
+        return {"outcome": {"outcome": "cancelled"}}
 
     def _record(
         self,
