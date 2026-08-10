@@ -127,12 +127,44 @@ class SessionModeState(BaseModel):
     meta: dict[str, Any] | None = Field(None, alias="_meta")
 
 
+class SessionConfigSelectOption(BaseModel):
+    """One selectable value of a session configuration option (ACP v1)."""
+    model_config = ConfigDict(populate_by_name=True)
+    value: str
+    name: str
+    description: str | None = None
+    meta: dict[str, Any] | None = Field(None, alias="_meta")
+
+
+class SessionConfigSelectGroup(BaseModel):
+    """A grouped set of selectable values (ACP v1 grouped form)."""
+    model_config = ConfigDict(populate_by_name=True)
+    group: str
+    name: str
+    options: list[SessionConfigSelectOption]
+    meta: dict[str, Any] | None = Field(None, alias="_meta")
+
+
 class SessionConfigOption(BaseModel):
+    """A session configuration option and its current state (ACP v1).
+
+    ACP v1 shape (replaces the pre-v1 `label`/`option_type`/`default_value`):
+    - select: `{ id, name, type:"select", currentValue, options, description?, category? }`
+    - boolean: `{ id, name, type:"boolean", value, description?, category? }`
+    `options` may be a flat array of SessionConfigSelectOption OR an array of
+    SessionConfigSelectGroup.
+    """
     model_config = ConfigDict(populate_by_name=True)
     id: str
-    label: str
-    option_type: str = Field(alias="type")
-    default_value: Any | None = Field(None, alias="defaultValue")
+    name: str
+    type: str
+    description: str | None = None
+    category: str | None = None
+    currentValue: str | None = None
+    options: (
+        list[SessionConfigSelectOption] | list[SessionConfigSelectGroup] | None
+    ) = None
+    value: bool | None = None
     meta: dict[str, Any] | None = Field(None, alias="_meta")
 
 
